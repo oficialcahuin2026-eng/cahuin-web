@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://40.70.20.86:5000/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cahuin-backend-1.onrender.com/api';
 
 export const storage = {
   getToken() {

@@ -1,5 +1,7 @@
 'use client';
 
+import { useUser, useAuth, SignIn } from '@clerk/nextjs';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Bell,
@@ -27,31 +29,20 @@ import { api, storage } from '@/lib/api';
 
 const fallbackProducts = [
   {
-    id: 'premium_plus_month',
+    id: 'cahuin_piola_monthly',
     type: 'premium',
-    tier: 'plus',
-    title: 'Cahuin Plus mensual',
-    amount: 4590,
-    bonusCahuines: 700,
-    features: ['Likes ilimitados', 'Rewind', 'Modo viajero nacional', '700 Cahuines'],
+    tier: 'piola',
+    title: 'Cahuin Piola',
+    amount: 3990,
+    features: ['Likes sin limite', 'Retroceder cuando te equivocas', 'Ruleta a Ciegas', 'Modo Chile', 'Sin anuncios'],
   },
   {
-    id: 'premium_gold_month',
+    id: 'cahuin_a_fondo_monthly',
     type: 'premium',
-    tier: 'gold',
-    title: 'Cahuin Gold mensual',
-    amount: 7490,
-    bonusCahuines: 1500,
-    features: ['Todo Plus', 'Ver quien te dio like', 'Top picks', '1 Boost mensual', '1500 Cahuines'],
-  },
-  {
-    id: 'premium_platinum_month',
-    type: 'premium',
-    tier: 'platinum',
-    title: 'Cahuin Platinum mensual',
-    amount: 11450,
-    bonusCahuines: 3000,
-    features: ['Todo Gold', 'Likes prioritarios', '3 Super Likes por semana', 'Modo incognito', '3000 Cahuines'],
+    tier: 'a_fondo',
+    title: 'Cahuin a Fondo',
+    amount: 6990,
+    features: ['Todo Piola', 'Ver quien te dio like', 'La Pica', 'Modo Destacado', 'Salvar Match Relampago'],
   },
   { id: 'cahuines_1000', type: 'cahuines', title: '1000 Cahuines', amount: 1990, cahuines: 1000 },
   { id: 'cahuines_3000', type: 'cahuines', title: '3000 Cahuines', amount: 4990, cahuines: 3000 },
@@ -130,11 +121,12 @@ function cx(...classes) {
   return classes.filter(Boolean).join(' ');
 }
 
-export default function HomePage() {
-  const [email, setEmail] = useState('pruebas.temuco@cahuin.test');
-  const [password, setPassword] = useState('Pruebas123!');
-  const [user, setUser] = useState(null);
+export default function CahuinWeb() {
+  const { isLoaded, isSignedIn, user: clerkUser } = useUser();
+  const { getToken, signOut } = useAuth();
+
   const [active, setActive] = useState('inicio');
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [data, setData] = useState({
@@ -216,27 +208,36 @@ export default function HomePage() {
     }
   }, [refresh]);
 
-  const login = async (event) => {
-    event.preventDefault();
-    setLoading(true);
-    setMessage('');
-    try {
-      const result = await api('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
-      storage.setSession(result);
-      setUser(result.usuario);
-      setMessage('Sesion iniciada. Web y app usan la misma cuenta.');
-      await refresh();
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (isLoaded && isSignedIn && clerkUser && !user) {
+      const syncBackend = async () => {
+        try {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://cahuin-backend-1.onrender.com/api'}/auth/sync-clerk`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clerkId: clerkUser.id,
+              email: clerkUser.primaryEmailAddress?.emailAddress,
+              nombre: clerkUser.fullName || clerkUser.firstName || 'Cahuinero',
+              fotoUrl: clerkUser.imageUrl
+            })
+          });
+          const data = await res.json();
+          if (data && data.token) {
+            storage.setSession({ token: data.token, usuario: data.usuario });
+            setUser(data.usuario);
+            refresh();
+          }
+        } catch (error) {
+          console.error('Error syncing with backend', error);
+        }
+      };
+      syncBackend();
     }
-  };
+  }, [isLoaded, isSignedIn, clerkUser, user, refresh]);
 
-  const logout = () => {
+  const logout = async () => {
+    await signOut();
     storage.clear();
     setUser(null);
     setActive('inicio');
@@ -315,41 +316,8 @@ export default function HomePage() {
             </div>
           </div>
 
-          <aside className="mx-auto w-full max-w-md rounded-[2rem] border border-white/80 bg-white/90 p-6 shadow-2xl shadow-rose-100 dark:border-white/10 dark:bg-[#111723] dark:shadow-black/40">
-            <div className="mb-8 text-center">
-              <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-3xl bg-gradient-to-br from-[#f0444f] to-[#ff785c]">
-                <Flame className="h-8 w-8 text-white" />
-              </div>
-              <h2 className="text-3xl font-black">Entrar a Cahuin</h2>
-              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                En lanzamiento usaremos Google o Facebook. Por ahora queda correo para pruebas.
-              </p>
-            </div>
-
-            <div className="grid gap-3">
-              <button className="h-14 rounded-2xl border border-slate-200 bg-white font-black dark:border-white/10 dark:bg-white/5">
-                Continuar con Google
-              </button>
-              <button className="h-14 rounded-2xl bg-[#1877F2] font-black text-white">
-                Continuar con Facebook
-              </button>
-            </div>
-
-            <div className="my-6 flex items-center gap-4 text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-              <div className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
-              pruebas
-              <div className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
-            </div>
-
-            <form onSubmit={login} className="space-y-4">
-              <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Correo" className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-4 font-bold outline-none transition focus:border-[#f0444f] dark:border-white/10 dark:bg-white/5" />
-              <input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Contrasena" type="password" className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-4 font-bold outline-none transition focus:border-[#f0444f] dark:border-white/10 dark:bg-white/5" />
-              <button disabled={loading} className="h-14 w-full rounded-2xl bg-gradient-to-r from-[#f0444f] to-[#ff7659] font-black text-white shadow-xl shadow-rose-500/25 disabled:opacity-60">
-                {loading ? 'Entrando...' : 'Iniciar sesion'}
-              </button>
-            </form>
-
-            {message ? <div className="mt-5 rounded-2xl bg-rose-50 p-4 text-sm font-bold text-rose-700 dark:bg-rose-500/10 dark:text-rose-100">{message}</div> : null}
+          <aside className="mx-auto flex w-full max-w-md items-center justify-center rounded-[2rem] border border-white/80 bg-white/90 p-6 shadow-2xl shadow-rose-100 dark:border-white/10 dark:bg-[#111723] dark:shadow-black/40">
+            <SignIn routing="hash" />
           </aside>
         </section>
       </main>
@@ -783,7 +751,7 @@ function StoreView({ products, buy, loading }) {
         <p className="mt-3 max-w-2xl text-slate-300">Compras desde la web y tu saldo aparece en la app porque comparten la misma cuenta.</p>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-4 xl:grid-cols-2">
         {plans.map((plan, index) => (
           <div key={plan.id} className={cx('rounded-[2rem] border bg-white p-5 shadow-xl dark:bg-white/5', index === 1 ? 'border-amber-300 shadow-amber-100 dark:border-amber-500/40' : 'border-slate-200 shadow-rose-100 dark:border-white/10 dark:shadow-black/20')}>
             <div className="flex items-center justify-between">
@@ -791,7 +759,7 @@ function StoreView({ products, buy, loading }) {
               {index === 1 ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-700">Mas pedido</span> : null}
             </div>
             <p className="mt-4 text-3xl font-black">{formatCLP(plan.amount)}</p>
-            <p className="mt-1 text-sm font-bold text-slate-500">por mes · incluye {plan.bonusCahuines || 0} Cahuines</p>
+            <p className="mt-1 text-sm font-bold text-slate-500">por mes {plan.bonusCahuines ? `· incluye ${plan.bonusCahuines} Cahuines` : ''}</p>
             <div className="mt-5 space-y-3">
               {(plan.features || []).map((feature) => (
                 <div key={feature} className="flex gap-3">
